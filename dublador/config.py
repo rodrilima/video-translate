@@ -11,6 +11,10 @@ JOBS_DIR = DATA_DIR / "jobs"
 VOICES_DIR = Path(__file__).resolve().parent / "voices"
 DB_PATH = DATA_DIR / "dublador.db"
 
+# Onde ficam os modelos do separador de fontes. O padrão da biblioteca é /tmp,
+# que o macOS limpa periodicamente — e são 1,2 GB rebaixados a cada limpeza.
+MODELS_DIR = Path.home() / ".cache" / "dublador" / "models"
+
 # Taxa silábica do português brasileiro falado, em sílabas por segundo.
 # MEDIDO, não estimado: 8 frases sintetizadas sem restrição de duração com
 # OmniVoice deram mediana 5.17 síl/s (desvio 0.29). O valor de literatura que eu

@@ -15,11 +15,7 @@ dependencies = [
     # CLI e apresentação
     "typer>=0.15",
     "rich>=13.9",
-    # aplicação
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.34",
-    "jinja2>=3.1",
-    "httpx>=0.28",
+    # fonetização pt-BR do sintetizador
     "misaki[en]>=0.9.4",
     "phonemizer>=3.4.0",
     "espeakng-loader>=0.2.4",

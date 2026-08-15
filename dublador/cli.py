@@ -89,6 +89,9 @@ def run(
         help="Navegador de onde ler cookies, se o YouTube bloquear")] = None,
     refazer: Annotated[str | None, typer.Option(
         help="Refaz a partir desta etapa (ex: review)")] = None,
+    clonar: Annotated[bool, typer.Option(
+        "--clonar",
+        help="Usa a voz de cada locutor do próprio vídeo, em vez do catálogo")] = False,
 ) -> None:
     """Dubla um vídeo do começo ao fim, acompanhando pelo terminal."""
     from rich.live import Live
@@ -110,7 +113,8 @@ def run(
                             preset=preset)
     state.stages = [runner.StageState(stage) for stage in runner.build_stages()]
 
-    escolha = "voz automática" if not voice else f"voz {voice} (forçada)"
+    escolha = ("vozes clonadas do vídeo" if clonar
+               else "voz automática" if not voice else f"voz {voice} (forçada)")
     console.print(f"[bold]{paths.job_id}[/bold]  {escolha}  preset {preset}")
 
     failed = None
@@ -121,7 +125,8 @@ def run(
 
         try:
             runner.run(state, paths, cfg, url=url, voice=voice, gender=gender,
-                       cookies=cookies, force_from=refazer, on_change=redraw)
+                       cookies=cookies, force_from=refazer, clone=clonar,
+                       on_change=redraw)
         except Exception as exc:  # noqa: BLE001 - mostrado abaixo, sem traceback
             failed = exc
         redraw()

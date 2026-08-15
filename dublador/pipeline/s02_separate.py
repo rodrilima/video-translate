@@ -21,7 +21,7 @@ import shutil
 from pathlib import Path
 from typing import Callable
 
-from ..config import JobPaths
+from ..config import MODELS_DIR, JobPaths
 
 ProgressFn = Callable[[float, str], None]
 
@@ -57,7 +57,9 @@ def separate(paths: JobPaths, *, model: str = DEFAULT_MODEL,
     workdir.mkdir(exist_ok=True)
 
     progress(0.05, f"carregando {model}")
-    separator = Separator(output_dir=str(workdir), output_format="WAV")
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    separator = Separator(output_dir=str(workdir), output_format="WAV",
+                          model_file_dir=str(MODELS_DIR))
     separator.load_model(model_filename=filename)
 
     progress(0.25, "separando voz e trilha")

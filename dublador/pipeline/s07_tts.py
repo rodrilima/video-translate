@@ -29,7 +29,7 @@ def _noop(pct: float, msg: str) -> None:
 
 
 def synthesize(paths: JobPaths, *, backend_name: str, voice_name: str | None,
-               progress: ProgressFn = _noop) -> list[Segment]:
+               clone: bool = False, progress: ProgressFn = _noop) -> list[Segment]:
     """Gera tts/seg_NNN.wav para cada segmento e anota a duração obtida.
 
     A voz vem do próprio segmento quando a diarização identificou quem fala;
@@ -38,14 +38,21 @@ def synthesize(paths: JobPaths, *, backend_name: str, voice_name: str | None,
     segments = load_segments(paths.segments)
     paths.ensure()
 
+    # Clonagem exige um motor zero-shot; o de vozes fixas não faz isso. A troca
+    # é automática para o modo não depender de o preset estar coerente.
+    if clone:
+        backend_name = CLONE_BACKEND
     backend = get_backend(backend_name)
-    voices = _voice_cache(segments, voice_name)
+    voices = (_clone_cache(paths, segments) if clone
+              else _voice_cache(segments, voice_name))
 
     progress(0.02, f"carregando {backend_name}")
     backend.warmup()
 
     for index, segment in enumerate(segments):
-        voice = voices[segment.voice if not voice_name else voice_name]
+        key = (segment.speaker if clone
+               else (voice_name or segment.voice))
+        voice = voices[key]
         _synthesize_segment(backend, segment, voice, paths)
         progress(0.05 + 0.92 * (index + 1) / len(segments),
                  f"sintetizando {index + 1}/{len(segments)}")
@@ -56,11 +63,34 @@ def synthesize(paths: JobPaths, *, backend_name: str, voice_name: str | None,
 
     overflowing = sum(1 for s in segments
                       if s.overflow_pct > OVERFLOW_TOLERANCE)
-    used = sorted({s.voice for s in segments if s.voice})
+    used = sorted({s.speaker if clone else s.voice for s in segments
+                   if (s.speaker if clone else s.voice)})
     detail = f", {len(used)} vozes" if len(used) > 1 else ""
+    if clone:
+        detail += " clonadas"
     progress(1.0,
              f"{len(segments)} sintetizados, {overflowing} acima do tempo{detail}")
     return segments
+
+
+CLONE_BACKEND = "omnivoice"
+
+
+def _clone_cache(paths: JobPaths, segments: list[Segment]) -> dict:
+    """Vozes extraídas do próprio vídeo, uma por locutor."""
+    from . import clone_voices
+
+    cache = {}
+    for speaker in {s.speaker for s in segments}:
+        voice = clone_voices.voice_for(paths, speaker)
+        if voice is not None:
+            cache[speaker] = voice
+
+    if not cache:
+        raise RuntimeError(
+            "nenhuma voz foi extraída do vídeo; rode a etapa de clonagem antes"
+        )
+    return _DefaultDict(cache, cache[sorted(cache, key=lambda k: str(k))[0]])
 
 
 def _voice_cache(segments: list[Segment], forced: str | None) -> dict:

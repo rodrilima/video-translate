@@ -24,6 +24,9 @@ class Stage:
     label: str
     run: StageFn
     artifact: Callable[[JobPaths], Path]
+    # Etapas opcionais só entram quando o contexto pede — a clonagem de voz é
+    # uma escolha por vídeo, não parte do caminho padrão.
+    enabled: Callable[[dict], bool] = lambda ctx: True
 
     def is_done(self, paths: JobPaths) -> bool:
         path = self.artifact(paths)
@@ -64,8 +67,8 @@ class RunState:
 def build_stages() -> list[Stage]:
     """A ordem importa: cada etapa consome o artefato da anterior."""
     from . import (brief, s01_download, s02_separate, s03_asr, s04_segment,
-                   diarize, s05_translate, s06_review, s07_tts, s08_fit,
-                   s09_render, s10_summary, voice_pick)
+                   clone_voices, diarize, s05_translate, s06_review, s07_tts,
+                   s08_fit, s09_render, s10_summary, voice_pick)
 
     return [
         Stage("download", "baixando vídeo",
@@ -100,6 +103,11 @@ def build_stages() -> list[Stage]:
               lambda ctx: ctx["shared"].update(
                   voice_pick.choose(ctx["paths"], progress=ctx["progress"])),
               lambda p: p.root / ".done_voice"),
+        Stage("clones", "extraindo a voz de cada locutor",
+              lambda ctx: clone_voices.extract(
+                  ctx["paths"], progress=ctx["progress"]),
+              lambda p: p.root / "clones.json",
+              enabled=lambda ctx: bool(ctx.get("clone"))),
         Stage("translate", "traduzindo",
               lambda ctx: s05_translate.translate(
                   ctx["paths"], model_id=ctx["preset"].translator_model,
@@ -116,7 +124,7 @@ def build_stages() -> list[Stage]:
               lambda ctx: s07_tts.synthesize(
                   ctx["paths"], backend_name=ctx["preset"].tts_backend,
                   voice_name=ctx["voice"] or ctx["shared"].get("voice", "alex"),
-                  progress=ctx["progress"]),
+                  clone=bool(ctx.get("clone")), progress=ctx["progress"]),
               lambda p: p.root / ".done_tts"),
         Stage("fit", "encaixando na linha do tempo",
               lambda ctx: s08_fit.assemble(
@@ -137,6 +145,7 @@ def build_stages() -> list[Stage]:
 def run(state: RunState, paths: JobPaths, preset: Preset, *,
         url: str, voice: str | None = None, gender: str = "masculina",
         cookies: str | None = None, force_from: str | None = None,
+        clone: bool = False,
         on_change: Callable[[], None] = lambda: None) -> RunState:
     """Executa as etapas, atualizando `state` para a interface acompanhar."""
     paths.ensure()
@@ -147,8 +156,15 @@ def run(state: RunState, paths: JobPaths, preset: Preset, *,
     # pulado. Sem --refazer permanece False, e tudo que já existe é aproveitado.
     forcing = False
 
+    context = {"clone": clone}
+
     for entry in state.stages:
         stage = entry.stage
+        if not stage.enabled(context):
+            entry.status = "pulado"
+            entry.message = "não solicitado"
+            on_change()
+            continue
         if force_from is not None and stage.key == force_from:
             forcing = True
 
@@ -175,7 +191,7 @@ def run(state: RunState, paths: JobPaths, preset: Preset, *,
             stage.run({
                 "paths": paths, "preset": preset, "url": url, "voice": voice,
                 "gender": gender, "cookies": cookies, "progress": progress,
-                "shared": shared,
+                "shared": shared, "clone": clone,
             })
         except Exception as exc:  # noqa: BLE001 - a falha é reportada, não engolida
             entry.status = "erro"
