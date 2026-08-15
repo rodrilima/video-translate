@@ -1,0 +1,51 @@
+[project]
+name = "dublador"
+version = "0.1.0"
+description = "Dublagem automática local de vídeos do YouTube, inglês para português brasileiro"
+requires-python = ">=3.12,<3.13"
+
+dependencies = [
+    # download e mídia
+    "yt-dlp>=2026.7.4",
+    "ffmpeg-normalize>=1.28",
+    # áudio
+    "numpy>=1.26",
+    "soundfile>=0.12",
+    "pyrubberband>=0.4",
+    # CLI e apresentação
+    "typer>=0.15",
+    "rich>=13.9",
+    # aplicação
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "jinja2>=3.1",
+    "httpx>=0.28",
+    "misaki[en]>=0.9.4",
+    "phonemizer>=3.4.0",
+    "espeakng-loader>=0.2.4",
+    "mlx-audio-separator>=0.1.7",
+    "librosa>=1.0.0",
+    "senko",
+]
+
+[project.optional-dependencies]
+# separados para que uma falha de instalação não derrube o resto
+ml = [
+    "parakeet-mlx>=0.4",
+    "mlx-audio>=0.2",
+    "mlx-lm>=0.21",
+    "mlx-whisper>=0.4",
+]
+
+[project.scripts]
+dublador = "dublador.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dublador"]
+
+[tool.uv.sources]
+senko = { git = "https://github.com/narcotic-sh/senko.git" }

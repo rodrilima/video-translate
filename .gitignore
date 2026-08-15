@@ -1,0 +1,20 @@
+# Ambiente Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.python-version
+
+# Artefatos de execução: vídeos, áudios e stems de cada job.
+# São grandes (centenas de MB por vídeo) e inteiramente reproduzíveis a partir
+# da URL — o pipeline retoma do que existir em disco.
+data/
+
+# Amostras e prévias geradas nos testes de qualidade.
+samples/
+
+# Modelos baixados sob demanda pelo separador de fontes.
+audio-separator-models/
+
+# macOS
+.DS_Store

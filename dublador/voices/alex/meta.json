@@ -1,0 +1,6 @@
+{
+  "kokoro_voice": "pm_alex",
+  "genero": "masculina",
+  "backend": "kokoro",
+  "nota": "Voz nativa do Kokoro com fonetizacao pt-BR (EspeakG2P pt-br). Nao precisa de clipe de referencia."
+}
