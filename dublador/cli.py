@@ -591,6 +591,61 @@ def resumo(
 
 
 @app.command()
+def modelos(
+    mover: Annotated[bool, typer.Option(
+        "--mover",
+        help="Executa de fato. Sem isto, apenas mostra o que seria feito")] = False,
+) -> None:
+    """Compartilha os LLMs de texto com a biblioteca do LM Studio.
+
+    Move os modelos de linguagem para ~/.lmstudio/models, onde servem tanto a
+    este projeto quanto ao LM Studio, em vez de ocupar espaço só aqui. Os
+    modelos de fala ficam no cache: o LM Studio não os executa.
+    """
+    from .utils import modelos as mod
+
+    encontrados = mod.listar()
+    if not encontrados:
+        console.print("[yellow]nenhum LLM de texto no cache[/yellow]")
+        return
+
+    table = Table("modelo", "tamanho", "situação")
+    for m in encontrados:
+        estado = ("[green]já no LM Studio[/green]" if m.ja_migrado
+                  else "[yellow]no cache do HF[/yellow]")
+        table.add_row(m.repo, f"{m.tamanho_gb:.1f} GB", estado)
+    console.print(table)
+
+    pendentes = [m for m in encontrados if not m.ja_migrado]
+    if not pendentes:
+        console.print("[green]tudo já compartilhado[/green]")
+        return
+
+    total = sum(m.tamanho_gb for m in pendentes)
+    if not mover:
+        console.print(f"\n[bold]{total:.1f} GB[/bold] seriam movidos para "
+                      f"{mod.LMSTUDIO_DIR}")
+        for m in pendentes:
+            console.print(f"  {m.origem.name}")
+            console.print(f"    -> {m.destino}")
+        console.print("\n[dim]nada foi alterado. para executar:[/dim] "
+                      "uv run dublador modelos --mover")
+        return
+
+    for m in pendentes:
+        console.print(f"movendo {m.repo} ({m.tamanho_gb:.1f} GB)...")
+        try:
+            mod.mover(m)
+        except Exception as exc:  # noqa: BLE001 - reportado, o resto continua
+            console.print(f"  [red]falhou:[/red] {exc}")
+            continue
+        console.print(f"  [green]ok[/green] {m.destino}")
+
+    console.print(f"\n[green]pronto.[/green] Os modelos agora servem aos dois "
+                  f"usos e são encontrados automaticamente.")
+
+
+@app.command()
 def voices() -> None:
     """Lista as vozes disponíveis no catálogo."""
     from .tts.base import list_voices

@@ -18,6 +18,18 @@ locais sobre MLX (Apple Silicon).
   Ficam em `~/.cache/huggingface/hub` e `~/.cache/dublador/models`. Com
   `--clonar`, some mais 1,5 GB.
 
+Se você usa o **LM Studio**, os modelos de linguagem podem ser compartilhados
+com ele — é o mesmo formato, MLX safetensors:
+
+```bash
+uv run dublador modelos            # mostra o que seria movido
+uv run dublador modelos --mover    # move para ~/.lmstudio/models
+```
+
+Os LLMs passam a servir aos dois usos em vez de ocupar espaço só aqui, e são
+encontrados automaticamente. Modelos de fala não são movidos: o LM Studio não
+executa reconhecimento de voz nem síntese.
+
 ## Instalação
 
 ```bash

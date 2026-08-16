@@ -13,7 +13,31 @@ from __future__ import annotations
 import gc
 import json
 import re
+from pathlib import Path
 from typing import Any, Callable
+
+
+# Onde o LM Studio guarda modelos. Ele usa o mesmo formato que usamos aqui —
+# MLX safetensors em pasta plana — então um modelo que esteja lá serve aos dois
+# sem duplicar gigabytes.
+LMSTUDIO_DIR = Path.home() / ".lmstudio" / "models"
+
+
+def resolve_model(model_id: str) -> str:
+    """Prefere o modelo já presente no LM Studio, se houver.
+
+    Recebe um identificador do Hugging Face (`org/nome`) e devolve um caminho
+    local quando esse modelo existe na biblioteca do LM Studio. Não achando,
+    devolve o identificador original e o download acontece como antes.
+    """
+    if "/" not in model_id or Path(model_id).exists():
+        return model_id
+
+    org, nome = model_id.split("/", 1)
+    for candidato in (LMSTUDIO_DIR / org / nome, LMSTUDIO_DIR / nome):
+        if (candidato / "config.json").exists():
+            return str(candidato)
+    return model_id
 
 
 # Lote pequeno por segurança, não por falta de memória: ver chat_batch.
@@ -144,7 +168,7 @@ class LocalLLM:
 
         from mlx_lm import load
 
-        _LOADED[self.model_id] = load(self.model_id)
+        _LOADED[self.model_id] = load(resolve_model(self.model_id))
         _ORDER.append(self.model_id)
         _evict_until_fits()
 
