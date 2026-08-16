@@ -25,6 +25,16 @@ NOISY = (
     "numba", "matplotlib", "speechbrain", "senko",
 )
 
+# Avisos verificados como inofensivos, silenciados até ERROR.
+#
+# O fonetizador emite "words count mismatch" quando o número de palavras da
+# saída não bate com o da entrada, o que acontece com aspas simples, sinal de
+# porcentagem e travessão — 29 dos 233 segmentos de um vídeo real. Conferido
+# por transcrição de volta do áudio gerado: o conteúdo é falado por inteiro em
+# todos os casos, e a divergência é só de contagem, porque pontuação conta como
+# palavra de um lado e não do outro.
+HARMLESS = ("phonemizer", "espeakng_loader")
+
 
 @contextlib.contextmanager
 def quiet_output(log_path: Path):
@@ -40,7 +50,8 @@ def quiet_output(log_path: Path):
     original_stderr = sys.stderr
     root = logging.getLogger()
     original_handlers = root.handlers[:]
-    original_levels = {name: logging.getLogger(name).level for name in NOISY}
+    original_levels = {name: logging.getLogger(name).level
+                       for name in NOISY + HARMLESS}
 
     file_handler = logging.StreamHandler(handle)
     file_handler.setLevel(logging.INFO)
@@ -59,6 +70,8 @@ def quiet_output(log_path: Path):
         root.setLevel(logging.INFO)
         for name in NOISY:
             logging.getLogger(name).setLevel(logging.WARNING)
+        for name in HARMLESS:
+            logging.getLogger(name).setLevel(logging.ERROR)
         _disable_progress_bars()
         yield log_path
     finally:
