@@ -145,6 +145,7 @@ def run(
     escolha = ("vozes clonadas do vídeo" if clonar
                else "voz automática" if not voice else f"voz {voice} (forçada)")
     console.print(f"[bold]{paths.job_id}[/bold]  {escolha}  preset {preset}")
+    _avisar_pasta_de_fora(paths)
 
     failed = None
     paths.ensure()
@@ -181,6 +182,26 @@ def run(
         console.print(f"[green]resumo:[/green] {resumo_path}")
     _print_voice(state.chosen, forced=voice)
     _print_quality(paths)
+
+
+def _avisar_pasta_de_fora(paths: JobPaths) -> None:
+    """Avisa quando o job reaproveitado não está no diretório atual.
+
+    Sem isso a execução parece não ter feito nada: a pessoa roda o comando numa
+    pasta, o programa reaproveita um trabalho anterior guardado em outro lugar,
+    e um `ls` no diretório atual não mostra nada.
+    """
+    from .config import jobs_dir
+
+    destino = jobs_dir()
+    if paths.root.exists() and paths.root.parent != destino:
+        console.print(
+            f"[yellow]nota:[/yellow] este vídeo já foi dublado em "
+            f"[bold]{paths.root}[/bold], e será reaproveitado de lá."
+        )
+        console.print(
+            f"[dim]para refazer do zero aqui:[/dim] mova ou apague aquela pasta"
+        )
 
 
 _STATUS_STYLE = {
