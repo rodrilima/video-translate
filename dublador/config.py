@@ -5,11 +5,38 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import os
+
 ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT / "data"
-JOBS_DIR = DATA_DIR / "jobs"
 VOICES_DIR = Path(__file__).resolve().parent / "voices"
-DB_PATH = DATA_DIR / "dublador.db"
+
+# Onde as pastas de job são criadas. O padrão é o diretório de onde o comando
+# foi chamado, para o resultado aparecer onde a pessoa está trabalhando em vez
+# de dentro da instalação do programa.
+_JOBS_DIR: Path | None = None
+
+# Local usado antes de a saída passar a seguir o diretório atual. Continua
+# sendo consultado na busca por jobs antigos, mas nada novo é criado nele.
+LEGACY_JOBS_DIR = ROOT / "data" / "jobs"
+
+
+def jobs_dir() -> Path:
+    """Diretório onde as pastas de job vivem.
+
+    Precedência: o que a linha de comando definiu, depois a variável de
+    ambiente DUBLADOR_DIR, depois o diretório atual.
+    """
+    if _JOBS_DIR is not None:
+        return _JOBS_DIR
+    from_env = os.environ.get("DUBLADOR_DIR")
+    if from_env:
+        return Path(from_env).expanduser().resolve()
+    return Path.cwd()
+
+
+def set_jobs_dir(path: Path | str | None) -> None:
+    global _JOBS_DIR
+    _JOBS_DIR = Path(path).expanduser().resolve() if path else None
 
 # Onde ficam os modelos do separador de fontes. O padrão da biblioteca é /tmp,
 # que o macOS limpa periodicamente — e são 1,2 GB rebaixados a cada limpeza.
@@ -110,16 +137,20 @@ def resolve_job_root(name: str) -> Path:
     aceitando apenas o ID: quem digita `dublador info ZTSI3DDP_4A` não deveria
     precisar lembrar do título.
     """
-    exact = JOBS_DIR / name
-    if exact.exists():
-        return exact
+    destino = jobs_dir()
 
-    if JOBS_DIR.exists():
-        matches = sorted(p for p in JOBS_DIR.glob(f"*-{name}") if p.is_dir())
-        if matches:
-            return matches[0]
+    # Procura no diretório atual e, só depois, no local antigo — jobs criados
+    # antes de a saída seguir o diretório atual continuam acessíveis pelo ID.
+    for base in (destino, LEGACY_JOBS_DIR):
+        exact = base / name
+        if exact.exists():
+            return exact
+        if base.exists():
+            matches = sorted(p for p in base.glob(f"*-{name}") if p.is_dir())
+            if matches:
+                return matches[0]
 
-    return exact
+    return destino / name
 
 
 @dataclass

@@ -17,7 +17,7 @@ from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 from rich.table import Table
 from typer.core import TyperGroup
 
-from .config import DEFAULT_PRESET, PRESETS, JobPaths
+from .config import DEFAULT_PRESET, PRESETS, JobPaths, set_jobs_dir
 from .utils.quiet import quiet_output
 
 
@@ -115,6 +115,8 @@ def run(
     clonar: Annotated[bool, typer.Option(
         "--clonar",
         help="Usa a voz de cada locutor do próprio vídeo, em vez do catálogo")] = False,
+    em: Annotated[str | None, typer.Option(
+        help="Onde criar a pasta do vídeo. Padrão: o diretório atual")] = None,
 ) -> None:
     """Dubla um vídeo do começo ao fim, acompanhando pelo terminal."""
     from rich.live import Live
@@ -122,6 +124,7 @@ def run(
     from .pipeline import runner
     from .tts.base import Voice
 
+    set_jobs_dir(em)
     url = normalize_url(url)
     # A pasta nasce com o identificador e é renomeada para o título assim que o
     # download o revela, o que evita uma consulta de metadados só para isso.

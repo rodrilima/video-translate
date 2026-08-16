@@ -237,7 +237,6 @@ def _rename_to_title(paths: JobPaths, state: RunState) -> None:
     Seguro neste ponto porque o download é a primeira etapa: só existem o
     vídeo, o áudio e os metadados, e nenhum artefato guarda caminho absoluto.
     """
-    from ..config import JOBS_DIR
     from ..utils.naming import job_folder
 
     if not paths.meta.exists():
@@ -253,7 +252,7 @@ def _rename_to_title(paths: JobPaths, state: RunState) -> None:
     if novo == paths.root.name:
         return
 
-    destino = JOBS_DIR / novo
+    destino = paths.root.parent / novo
     if destino.exists():
         return
 

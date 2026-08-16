@@ -41,18 +41,33 @@ uv run dublador iq5VjE31Eig
 ```
 
 Só isso. O programa escolhe as vozes, mostra o progresso de cada etapa no
-terminal e grava tudo numa pasta nomeada pelo título do vídeo, como
-`data/jobs/minha-estrategia-de-redes-sociais-ZTSI3DDP_4A/`. O identificador no
-fim mantém a pasta única quando dois vídeos têm o mesmo título, e os
-subcomandos aceitam só ele: `uv run dublador info ZTSI3DDP_4A`.
+terminal e grava tudo numa pasta nomeada pelo título do vídeo, criada no
+diretório atual: `./minha-estrategia-de-redes-sociais-ZTSI3DDP_4A/`. O
+identificador no fim mantém a pasta única quando dois vídeos têm o mesmo
+título, e os subcomandos aceitam só ele: `uv run dublador info ZTSI3DDP_4A`.
 
-Uma URL completa tem `?`, que o zsh expande como glob antes de o programa
-receber o argumento. Para colar a URL direto, sem aspas, defina um alias com
-`noglob` no seu `~/.zshrc`:
+### Rodando de qualquer pasta
+
+Defina um alias no seu `~/.zshrc`:
 
 ```bash
-alias dublar='noglob uv run dublador'
+alias dublar='noglob uv run --project ~/projetos/translate dublador'
 ```
+
+O `--project` faz o comando usar o ambiente do projeto de onde quer que você
+esteja, sem duplicar a instalação. O `noglob` resolve o `?` da URL, que o zsh
+expandiria como glob antes de o programa receber o argumento.
+
+Com isso, a pasta do vídeo é criada **no diretório onde você está**:
+
+```bash
+cd ~/videos/dublados
+dublar https://www.youtube.com/watch?v=iq5VjE31Eig
+# cria ~/videos/dublados/titulo-do-video-iq5VjE31Eig/
+```
+
+Para mandar a saída para outro lugar, use `--em <pasta>` ou defina
+`DUBLADOR_DIR` no ambiente.
 
 Daí em diante:
 
@@ -60,7 +75,7 @@ Daí em diante:
 dublar https://www.youtube.com/watch?v=iq5VjE31Eig       # URL completa, sem aspas
 ```
 
-Sem o alias, estas formas funcionam do mesmo jeito:
+Sem o alias, estas formas de passar o vídeo funcionam do mesmo jeito:
 
 ```bash
 uv run dublador iq5VjE31Eig                              # só o ID
@@ -83,6 +98,7 @@ interrompida continua de onde parou, em vez de recomeçar.
 | `--preset draft\|balanced\|max` | Troca qualidade por tempo. Padrão: `balanced` |
 | `--refazer <etapa>` | Refaz a partir de um ponto, reaproveitando o resto |
 | `--cookies chrome` | Quando o YouTube bloquear o download |
+| `--em <pasta>` | Onde criar a pasta do vídeo. Padrão: o diretório atual |
 
 `--refazer` é o que torna ajustes baratos. Trocar de voz leva ~11 s em vez de
 reprocessar o vídeo inteiro:
