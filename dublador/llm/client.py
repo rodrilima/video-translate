@@ -13,7 +13,7 @@ from __future__ import annotations
 import gc
 import json
 import re
-from typing import Any
+from typing import Any, Callable
 
 
 # Lote pequeno por segurança, não por falta de memória: ver chat_batch.
@@ -178,7 +178,9 @@ class LocalLLM:
 
     def chat_batch(self, conversations: list[list[dict[str, str]]], *,
                    max_tokens: int = 512, temperature: float = 0.2,
-                   batch_size: int = BATCH_SIZE) -> list[str]:
+                   batch_size: int = BATCH_SIZE,
+                   on_progress: Callable[[int, int], None] | None = None
+                   ) -> list[str]:
         """Gera várias respostas de uma vez.
 
         Chamadas de um prompt por vez deixam a GPU ociosa entre tokens: medido
@@ -222,6 +224,8 @@ class LocalLLM:
                         temperature=temperature,
                     )
             outputs.extend(texts)
+            if on_progress is not None:
+                on_progress(len(outputs), len(conversations))
 
         return outputs
 

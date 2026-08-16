@@ -43,13 +43,20 @@ def quiet_output(log_path: Path):
     original_levels = {name: logging.getLogger(name).level for name in NOISY}
 
     file_handler = logging.StreamHandler(handle)
+    file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(
         logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
     )
 
+    original_root_level = root.level
+
     try:
         sys.stderr = handle
         root.handlers = [file_handler]
+        # O root nasce em WARNING, o que descartaria a telemetria do pipeline
+        # antes de ela chegar ao arquivo. As bibliotecas barulhentas continuam
+        # contidas pelos níveis individuais logo abaixo.
+        root.setLevel(logging.INFO)
         for name in NOISY:
             logging.getLogger(name).setLevel(logging.WARNING)
         _disable_progress_bars()
@@ -57,6 +64,7 @@ def quiet_output(log_path: Path):
     finally:
         sys.stderr = original_stderr
         root.handlers = original_handlers
+        root.setLevel(original_root_level)
         for name, level in original_levels.items():
             logging.getLogger(name).setLevel(level)
         handle.close()

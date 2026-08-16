@@ -62,8 +62,11 @@ def review(paths: JobPaths, *, model_id: str, attempts: int = 3,
                 break
 
             label = "revisando" if round_index == 0 else "encurtando"
-            progress(0.05 + 0.9 * round_index / max(1, attempts),
-                     f"{label} {len(pending)} segmentos")
+            # A rodada 1 cobre quase tudo; as seguintes reprocessam poucos
+            # segmentos. Dividir a barra pelo número de tentativas fazia a
+            # rodada 1 completa marcar 35% e depois saltar para 100%.
+            base = 0.05 if round_index == 0 else 0.95
+            span = 0.90 if round_index == 0 else 0.04
 
             # Em blocos, e não tudo de uma vez: os prompts de um bloco são
             # montados depois de o anterior ter respondido, então cada fala vê
@@ -85,10 +88,9 @@ def review(paths: JobPaths, *, model_id: str, attempts: int = 3,
                 for segment, raw in zip(chunk, responses):
                     _apply_response(segment, raw)
 
-                progress(0.05 + 0.9 * (round_index + (start + len(chunk))
-                                       / max(len(pending), 1))
-                         / max(1, attempts),
-                         f"{label} {start + len(chunk)}/{len(pending)}")
+                feitos = start + len(chunk)
+                progress(base + span * feitos / max(len(pending), 1),
+                         f"{label} {feitos}/{len(pending)}")
 
             pending = [s for s in pending
                        if s.overflow_pct > OVERFLOW_TOLERANCE

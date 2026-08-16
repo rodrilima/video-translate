@@ -7,6 +7,9 @@ nem a transcrição refeita.
 
 from __future__ import annotations
 
+import json
+import logging
+import platform
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -16,6 +19,8 @@ from ..config import Preset, JobPaths
 
 ProgressFn = Callable[[float, str], None]
 StageFn = Callable[..., Any]
+
+log = logging.getLogger("dublador")
 
 
 @dataclass
@@ -157,6 +162,7 @@ def run(state: RunState, paths: JobPaths, preset: Preset, *,
     forcing = False
 
     context = {"clone": clone}
+    _log_run_header(paths, preset, url, voice, clone)
 
     for entry in state.stages:
         stage = entry.stage
@@ -186,6 +192,7 @@ def run(state: RunState, paths: JobPaths, preset: Preset, *,
         entry.message = ""
         on_change()
         started = time.time()
+        log.info("etapa %s: início", stage.key)
 
         try:
             stage.run({
@@ -197,6 +204,7 @@ def run(state: RunState, paths: JobPaths, preset: Preset, *,
             entry.status = "erro"
             entry.error = f"{type(exc).__name__}: {exc}"
             entry.seconds = time.time() - started
+            log.exception("etapa %s: FALHOU apos %.1fs", stage.key, entry.seconds)
             on_change()
             raise
 
@@ -209,10 +217,102 @@ def run(state: RunState, paths: JobPaths, preset: Preset, *,
         entry.status = "pronto"
         entry.percent = 1.0
         entry.seconds = time.time() - started
+        _log_stage_done(entry, paths)
         on_change()
 
     state.chosen = dict(shared)
+    _log_run_summary(state, paths)
     return state
+
+
+def _log_run_header(paths: JobPaths, preset: Preset, url: str,
+                    voice: str | None, clone: bool) -> None:
+    """Registra as condições da execução, para comparar rodadas depois."""
+    import mlx.core as mx
+
+    log.info("=" * 70)
+    log.info("job=%s url=%s", paths.job_id, url)
+    log.info("preset=%s voz=%s clonagem=%s", preset.name, voice or "auto", clone)
+    log.info("modelos: asr=%s tradutor=%s revisor=%s tts=%s",
+             preset.asr_model, preset.translator_model, preset.reviewer_model,
+             preset.tts_backend)
+    log.info("maquina: %s | mlx device=%s", platform.platform(),
+             mx.default_device())
+
+
+def _log_stage_done(entry: StageState, paths: JobPaths) -> None:
+    """Uma linha por etapa, com o que ela produziu e quanto custou.
+
+    Em JSON para permitir comparar execuções sem reprocessar nada: basta ler os
+    run.log de dois jobs e cruzar os tempos por etapa.
+    """
+    import mlx.core as mx
+
+    registro = {
+        "etapa": entry.stage.key,
+        "segundos": round(entry.seconds, 2),
+        "resultado": entry.message,
+        "memoria_gb": round(mx.get_active_memory() / 1073741824, 2),
+        "pico_gb": round(mx.get_peak_memory() / 1073741824, 2),
+    }
+    artefato = entry.stage.artifact(paths)
+    if artefato.exists() and not artefato.name.startswith(".done_"):
+        registro["artefato_mb"] = round(artefato.stat().st_size / 1e6, 1)
+
+    log.info("etapa concluida %s", json.dumps(registro, ensure_ascii=False))
+
+
+def _log_run_summary(state: RunState, paths: JobPaths) -> None:
+    """Fecha o log com o perfil de tempo e as métricas de qualidade."""
+    executadas = [e for e in state.stages if e.status == "pronto"]
+    total = sum(e.seconds for e in executadas) or 1.0
+
+    log.info("-" * 70)
+    log.info("perfil de tempo (%.1fs em %d etapas executadas):",
+             total, len(executadas))
+    for entry in sorted(executadas, key=lambda e: -e.seconds):
+        log.info("  %-28s %7.1fs  %4.1f%%", entry.stage.key, entry.seconds,
+                 100 * entry.seconds / total)
+
+    _log_quality(paths)
+
+
+def _log_quality(paths: JobPaths) -> None:
+    """Métricas do resultado, para achar regressão sem reassistir ao vídeo."""
+    from collections import Counter
+
+    from ..model import load_segments
+    from ..utils.syllables import count_syllables
+
+    if not paths.segments.exists():
+        return
+
+    segments = load_segments(paths.segments)
+    if not segments:
+        return
+
+    estouros = sorted(s.overflow_pct for s in segments)
+    fragmentos = sum(1 for s in segments
+                     if s.text_en and (not s.text_en[0].isupper()
+                                       or s.text_en.rstrip()[-1] not in ".!?…"))
+    silabas = [count_syllables(s.text_pt_final or "") for s in segments]
+
+    log.info("-" * 70)
+    log.info("qualidade: %d segmentos | fragmentos %d (%.0f%%) | "
+             "estouro p50 %.0f%% p95 %.0f%%",
+             len(segments), fragmentos, 100 * fragmentos / len(segments),
+             100 * estouros[len(estouros) // 2],
+             100 * estouros[int(len(estouros) * 0.95)])
+    log.info("qualidade: esticados %d | sobrepostos %d | reescritas %d | "
+             "silabas medianas %d",
+             sum(1 for s in segments if abs(s.stretch - 1.0) > 0.01),
+             sum(1 for s in segments if "sobreposicao" in s.qa_flags),
+             sum(s.attempts for s in segments),
+             sorted(silabas)[len(silabas) // 2] if silabas else 0)
+
+    flags = Counter(f.split(":")[0] for s in segments for f in s.qa_flags)
+    for flag, contagem in flags.most_common():
+        log.info("  ressalva %-24s %d", flag, contagem)
 
 
 def _load_voice_choice(paths: JobPaths) -> dict:

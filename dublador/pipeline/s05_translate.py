@@ -63,7 +63,12 @@ def translate(paths: JobPaths, *, model_id: str,
             if not segment.text_en.strip():
                 segment.text_pt_raw = ""
 
-        progress(0.10, f"traduzindo {len(pending)} segmentos")
+        progress(0.08, f"traduzindo {len(pending)} segmentos")
+
+        def relatar(feitos: int, total: int) -> None:
+            progress(0.08 + 0.90 * feitos / max(total, 1),
+                     f"traduzindo {feitos}/{total}")
+
         conversations = [
             [{"role": "user",
               "content": _prompt_for(segment, segments, brief_block)}]
@@ -71,7 +76,7 @@ def translate(paths: JobPaths, *, model_id: str,
         ]
         max_tokens = max((_token_budget(s.text_en) for s in pending), default=96)
         responses = llm.chat_batch(conversations, max_tokens=max_tokens,
-                                   temperature=0.0)
+                                   temperature=0.0, on_progress=relatar)
 
         for segment, text in zip(pending, responses):
             segment.text_pt_raw = text.strip()
