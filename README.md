@@ -14,7 +14,7 @@ locais sobre MLX (Apple Silicon).
   ou CUDA.
 - 16 GB de memória unificada é o mínimo confortável. O modelo de revisão sozinho
   ocupa ~8 GB.
-- ~15 GB de disco para os modelos, baixados sob demanda na primeira execução.
+- ~16 GB de disco para os modelos, baixados sob demanda na primeira execução.
   Ficam em `~/.cache/huggingface/hub` e `~/.cache/dublador/models`. Com
   `--clonar`, some mais 1,5 GB.
 

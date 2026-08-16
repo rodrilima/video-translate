@@ -30,7 +30,6 @@ ml = [
     "parakeet-mlx>=0.4",
     "mlx-audio>=0.2",
     "mlx-lm>=0.21",
-    "mlx-whisper>=0.4",
 ]
 
 [project.scripts]
