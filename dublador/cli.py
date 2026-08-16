@@ -49,6 +49,24 @@ app = typer.Typer(
 console = Console()
 
 
+# Um ID de vídeo do YouTube: 11 caracteres, sem nada que o shell interprete.
+_BARE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def normalize_url(entrada: str) -> str:
+    """Aceita URL completa, URL curta ou apenas o ID do vídeo.
+
+    O ID puro existe para dispensar as aspas: uma URL do YouTube tem `?` e `&`,
+    que o zsh trata como glob e como operador de background — o shell falha
+    antes de o programa receber o argumento, então isso não tem como ser
+    resolvido aqui dentro. Passar só o ID contorna o problema na origem.
+    """
+    entrada = entrada.strip().strip('"').strip("'")
+    if _BARE_ID_RE.match(entrada):
+        return f"https://www.youtube.com/watch?v={entrada}"
+    return entrada
+
+
 def job_id_for(url: str) -> str:
     """Identificador estável por URL: rodar de novo retoma o mesmo job."""
     video_id = _youtube_id(url)
@@ -58,6 +76,8 @@ def job_id_for(url: str) -> str:
 
 
 def _youtube_id(url: str) -> str | None:
+    if _BARE_ID_RE.match(url.strip()):
+        return url.strip()
     patterns = [
         r"(?:v=|/shorts/|youtu\.be/|/embed/)([A-Za-z0-9_-]{11})",
     ]
@@ -81,7 +101,8 @@ def _progress_bar(label: str):
 
 @app.command()
 def run(
-    url: Annotated[str, typer.Argument(help="URL do vídeo em inglês")],
+    url: Annotated[str, typer.Argument(
+        help="URL do vídeo, ou só o ID (dispensa aspas)")],
     voice: Annotated[str | None, typer.Option(
         help="Força uma voz do catálogo; por padrão o dublador escolhe")] = None,
     preset: Annotated[str, typer.Option(help="draft, balanced ou max")] = DEFAULT_PRESET,
@@ -99,6 +120,7 @@ def run(
     from .pipeline import runner
     from .tts.base import Voice
 
+    url = normalize_url(url)
     paths = JobPaths(job_id_for(url))
     cfg = PRESETS[preset]
 
@@ -139,7 +161,7 @@ def run(
         raise typer.Exit(1)
 
     console.print(f"\n[green]pronto:[/green] {paths.output}")
-    resumo_path = paths.root / "resumo.md"
+    resumo_path = paths.root / "resumo.txt"
     if resumo_path.exists():
         console.print(f"[green]resumo:[/green] {resumo_path}")
     _print_voice(state.chosen, forced=voice)
@@ -528,7 +550,7 @@ def resumo(
             paths, model_id=cfg.reviewer_model,
             progress=lambda p, m: bar.update(task, completed=p, msg=m),
         )
-    console.print(f"[green]OK[/green] {paths.root / 'resumo.md'}")
+    console.print(f"[green]OK[/green] {paths.root / 'resumo.txt'}")
     console.print(f"[bold]{result['titulo']}[/bold]")
 
 

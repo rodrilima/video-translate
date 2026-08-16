@@ -138,7 +138,7 @@ def build_stages() -> list[Stage]:
               lambda ctx: s10_summary.summarize(
                   ctx["paths"], model_id=ctx["preset"].reviewer_model,
                   progress=ctx["progress"]),
-              lambda p: p.root / "resumo.md"),
+              lambda p: p.root / "resumo.txt"),
     ]
 
 

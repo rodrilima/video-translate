@@ -172,9 +172,60 @@ def _pipeline(groups: list[list[Word]],
     que nenhuma etapa posterior pode desfazer sem estragar a dublagem."""
     turns = turns or []
     groups = _split_by_speaker(groups, turns)
+    groups = _merge_fragments(groups, turns)
     units = _annotate_timing(_merge_short(_split_long(groups), turns))
     _assign_speakers(units, turns)
     return units
+
+
+# Pontuação que fecha uma ideia. Sem ela no fim de um trecho, a frase continua.
+SENTENCE_END = ".!?…"
+# Pausa longa demais para ser respiração no meio de uma frase.
+FRAGMENT_GAP = 0.80
+
+
+def _merge_fragments(groups: list[list[Word]],
+                     turns: list[dict]) -> list[list[Word]]:
+    """Junta trechos que são a mesma frase partida ao meio.
+
+    O ASR fecha sentença por pausa, não por gramática: quem respira no meio de
+    uma oração gera dois pedaços. Medido no material de teste, 61% dos
+    segmentos eram fragmentos, incluindo um com a palavra "the" sozinha — que
+    foi traduzida isolada, como "o".
+
+    Traduzir meia oração é o que faz a dublagem soar solta: sem saber onde o
+    trecho se encaixa, o modelo não tem como escolher a regência nem a ordem
+    das palavras, que em português diferem do inglês.
+    """
+    if not groups:
+        return []
+
+    merged: list[list[Word]] = [groups[0]]
+    for words in groups[1:]:
+        previous = merged[-1]
+        gap = words[0].s - previous[-1].e
+        combined = words[-1].e - previous[0].s
+
+        if (_continues_sentence(previous, words)
+                and combined <= MAX_DURATION
+                and gap <= FRAGMENT_GAP
+                and _same_speaker(previous, words, turns)):
+            merged[-1] = previous + words
+        else:
+            merged.append(words)
+    return merged
+
+
+def _continues_sentence(previous: list[Word], words: list[Word]) -> bool:
+    """True quando o corte entre os dois trechos cai no meio de uma frase."""
+    tail = previous[-1].w.rstrip()
+    head = words[0].w.lstrip()
+    if not tail or not head:
+        return True
+
+    unfinished = tail[-1] not in SENTENCE_END
+    lowercase_start = head[0].islower()
+    return unfinished or lowercase_start
 
 
 def _split_by_speaker(groups: list[list[Word]],

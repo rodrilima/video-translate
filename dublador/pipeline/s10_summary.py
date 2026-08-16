@@ -54,7 +54,7 @@ MAX_CHARS = 14000
 
 def summarize(paths: JobPaths, *, model_id: str,
               progress: ProgressFn = _noop) -> dict:
-    """Escreve resumo.md e resumo.json."""
+    """Escreve resumo.txt."""
     segments = load_segments(paths.segments)
     transcript = _transcript(segments)
 
@@ -79,67 +79,80 @@ def summarize(paths: JobPaths, *, model_id: str,
         "para_quem": str(payload.get("para_quem", "")).strip(),
     }
 
-    (paths.root / "resumo.json").write_text(
-        json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    _write_markdown(paths, summary)
+    _write_text(paths, summary)
 
-    progress(1.0, "resumo.md pronto")
+    progress(1.0, "resumo.txt pronto")
     return summary
 
 
-def _write_markdown(paths: JobPaths, summary: dict) -> None:
+def _write_text(paths: JobPaths, summary: dict) -> None:
+    """Grava o resumo em texto puro, legível em qualquer lugar."""
     source = _source_meta(paths)
     brief = brief_stage.load(paths)
 
-    lines: list[str] = []
-    lines.append(f"# {summary['titulo'] or source.get('title', 'Resumo')}")
-    lines.append("")
+    linhas: list[str] = []
+    titulo = summary["titulo"] or source.get("title", "Resumo")
+    linhas.append(titulo)
+    linhas.append("=" * len(titulo))
+    linhas.append("")
 
     if summary.get("para_quem"):
-        lines.append(f"*{summary['para_quem']}*")
-        lines.append("")
+        linhas.append(summary["para_quem"])
+        linhas.append("")
 
     if source:
-        duration = source.get("audio_duration") or source.get("duration") or 0
-        minutes, seconds = divmod(int(duration), 60)
-        lines.append("| | |")
-        lines.append("|---|---|")
+        duracao = source.get("audio_duration") or source.get("duration") or 0
+        minutos, segundos = divmod(int(duracao), 60)
         if source.get("title"):
-            lines.append(f"| Título original | {source['title']} |")
+            linhas.append(f"Titulo original: {source['title']}")
         if source.get("uploader"):
-            lines.append(f"| Canal | {source['uploader']} |")
-        lines.append(f"| Duração | {minutes}:{seconds:02d} |")
+            linhas.append(f"Canal: {source['uploader']}")
+        linhas.append(f"Duracao: {minutos}:{segundos:02d}")
         if source.get("url"):
-            lines.append(f"| Origem | {source['url']} |")
-        lines.append("")
+            linhas.append(f"Origem: {source['url']}")
+        linhas.append("")
 
-    lines.append("## Resumo")
-    lines.append("")
-    lines.append(summary["resumo"])
-    lines.append("")
+    linhas.append("RESUMO")
+    linhas.append("")
+    linhas += _wrap(summary["resumo"])
+    linhas.append("")
 
     if summary["pontos"]:
-        lines.append("## Pontos principais")
-        lines.append("")
-        lines += [f"- {p}" for p in summary["pontos"]]
-        lines.append("")
+        linhas.append("PONTOS PRINCIPAIS")
+        linhas.append("")
+        for ponto in summary["pontos"]:
+            envolvido = _wrap(ponto, largura=74)
+            linhas.append(f"- {envolvido[0]}")
+            linhas += [f"  {linha}" for linha in envolvido[1:]]
+        linhas.append("")
 
-    glossary = brief.get("glossario") or {}
-    if glossary:
-        lines.append("## Termos")
-        lines.append("")
-        lines.append("| Original | Em português |")
-        lines.append("|---|---|")
-        lines += [f"| {k} | {v} |" for k, v in glossary.items()]
-        lines.append("")
+    glossario = brief.get("glossario") or {}
+    if glossario:
+        linhas.append("TERMOS")
+        linhas.append("")
+        largura = max(len(k) for k in glossario)
+        linhas += [f"  {k.ljust(largura)}  {v}" for k, v in glossario.items()]
+        linhas.append("")
 
-    lines.append("---")
-    lines.append("")
-    lines.append("Resumo gerado automaticamente a partir da transcrição do "
-                 "vídeo, junto com a dublagem em português.")
-    lines.append("")
+    linhas.append("-" * 76)
+    linhas.append("Resumo gerado automaticamente a partir da transcricao do video,")
+    linhas.append("junto com a dublagem em portugues.")
+    linhas.append("")
 
-    (paths.root / "resumo.md").write_text("\n".join(lines), encoding="utf-8")
+    (paths.root / "resumo.txt").write_text("\n".join(linhas), encoding="utf-8")
+
+
+def _wrap(texto: str, largura: int = 76) -> list[str]:
+    """Quebra em linhas de largura fixa, preservando os paragrafos."""
+    import textwrap
+
+    saida: list[str] = []
+    for paragrafo in texto.split("\n"):
+        if not paragrafo.strip():
+            saida.append("")
+            continue
+        saida += textwrap.wrap(paragrafo.strip(), width=largura)
+    return saida or [""]
 
 
 def _source_meta(paths: JobPaths) -> dict:

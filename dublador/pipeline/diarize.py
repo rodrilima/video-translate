@@ -80,18 +80,39 @@ def load(paths: JobPaths) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+# Janela mínima de consulta. O ASR às vezes emite palavras com início igual ao
+# fim; sem isso a sobreposição com qualquer turno seria zero e a palavra ficaria
+# órfã — o que já bloqueou a fusão de um fragmento de uma palavra só, porque
+# "sem locutor" era tratado como "outro locutor".
+MIN_QUERY_WINDOW = 0.05
+
+
 def speaker_at(turns: list[dict], start: float, end: float) -> str | None:
     """Quem fala num intervalo, pelo turno de maior sobreposição.
 
     Sobreposição, e não o instante inicial: uma fala pode começar durante a
     cauda do turno anterior, e o dono do trecho é quem ocupa mais tempo dele.
     """
+    if end - start < MIN_QUERY_WINDOW:
+        centro = (start + end) / 2
+        start, end = centro - MIN_QUERY_WINDOW / 2, centro + MIN_QUERY_WINDOW / 2
+
     best, best_overlap = None, 0.0
     for turn in turns:
         overlap = min(end, turn["end"]) - max(start, turn["start"])
         if overlap > best_overlap:
             best, best_overlap = turn["speaker"], overlap
-    return best
+
+    if best is not None:
+        return best
+
+    # Ponto em silêncio entre dois turnos: atribui ao turno mais próximo, em vez
+    # de devolver None e criar uma fronteira artificial de locutor.
+    if not turns:
+        return None
+    centro = (start + end) / 2
+    return min(turns, key=lambda t: min(abs(centro - t["start"]),
+                                        abs(centro - t["end"])))["speaker"]
 
 
 def _normalize(raw) -> list[dict]:

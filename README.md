@@ -37,11 +37,22 @@ sudo sysctl iogpu.wired_limit_mb=20480
 ## Uso
 
 ```bash
-uv run dublador "https://www.youtube.com/watch?v=..."
+uv run dublador iq5VjE31Eig
 ```
 
 Só isso. O programa escolhe as vozes, mostra o progresso de cada etapa no
 terminal e grava tudo em `data/jobs/<id-do-video>/`.
+
+Passar apenas o ID do vídeo dispensa as aspas. Uma URL completa tem `?` e `&`,
+que o zsh trata como glob e como operador de background — o shell falha antes
+de o programa receber o argumento, então isso não tem como ser resolvido do
+lado do programa. As três formas abaixo funcionam:
+
+```bash
+uv run dublador iq5VjE31Eig                              # sem aspas
+uv run dublador https://youtu.be/iq5VjE31Eig             # sem aspas (URL curta)
+uv run dublador "https://www.youtube.com/watch?v=iq5..."  # URL completa, com aspas
+```
 
 Rodar o mesmo link de novo aproveita tudo que já está em disco — uma execução
 interrompida continua de onde parou, em vez de recomeçar.
@@ -60,7 +71,7 @@ interrompida continua de onde parou, em vez de recomeçar.
 reprocessar o vídeo inteiro:
 
 ```bash
-uv run dublador --voice dora --refazer tts "https://youtube.com/watch?v=..."
+uv run dublador --voice dora --refazer tts iq5VjE31Eig
 ```
 
 ### O que é gerado
@@ -70,7 +81,7 @@ Em `data/jobs/<id>/`:
 | arquivo | conteúdo |
 |---|---|
 | `out.mp4` | O vídeo final: dublagem, áudio original, legendas pt e en |
-| `resumo.md` | Resumo do conteúdo, com pontos principais e glossário |
+| `resumo.txt` | Resumo do conteúdo, com pontos principais e glossário |
 | `segments.json` | Todas as falas, com tempos, tradução e voz atribuída |
 | `pt.srt` / `en.srt` | Legendas soltas |
 | `brief.json` | Assunto, registro e termos, apurados do vídeo inteiro |

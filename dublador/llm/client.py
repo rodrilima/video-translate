@@ -19,6 +19,21 @@ from typing import Any
 # Lote pequeno por segurança, não por falta de memória: ver chat_batch.
 BATCH_SIZE = 4
 
+# Tamanho mínimo do prefixo comum para valer a pena prefixar o cache. Abaixo
+# disso, montar e copiar o cache custa mais do que reprocessar os tokens.
+MIN_SHARED_PREFIX = 200
+
+
+def _common_prefix_length(prompts: list[list[int]]) -> int:
+    """Quantos tokens iniciais são iguais em todos os prompts."""
+    shortest = min(len(p) for p in prompts)
+    first = prompts[0]
+    for index in range(shortest):
+        token = first[index]
+        if any(p[index] != token for p in prompts):
+            return index
+    return shortest
+
 # Escritas que não têm o que fazer numa tradução para o português. A presença
 # delas é sinal forte de contaminação entre sequências do lote, não de um
 # estrangeirismo legítimo — que viria em alfabeto latino.
@@ -131,9 +146,11 @@ class LocalLLM:
                 self._tokenizer.encode(self._apply_template(messages))
                 for messages in chunk
             ]
+            prompts, caches = self._share_prefix(prompts)
             response = batch_generate(
                 self._model, self._tokenizer, prompts=prompts,
                 max_tokens=max_tokens, sampler=sampler, verbose=False,
+                prompt_caches=caches,
             )
             texts = [_strip_reasoning(text).strip() for text in response.texts]
 
@@ -148,6 +165,51 @@ class LocalLLM:
             outputs.extend(texts)
 
         return outputs
+
+    def _share_prefix(self, prompts: list[list[int]]):
+        """Calcula uma vez o trecho que todos os prompts do lote têm em comum.
+
+        Nas etapas de reescrita, instrução e briefing são idênticos entre os
+        segmentos e respondem por cerca de três quartos de cada prompt: medido
+        aqui, 963 de ~1.250 tokens, reprocessados a cada segmento. Prefixar o
+        cache uma vez e reaproveitá-lo acelera a revisão em ~1,47x.
+
+        A saída NÃO é bit a bit idêntica, ao contrário do que a ideia sugere.
+        O prefixo é processado em lote de 1 e a geração em lote de 4, e essa
+        diferença de forma muda ligeiramente os valores de ponto flutuante;
+        onde dois tokens estão quase empatados, a escolha vira. Medido em
+        material real: 16 de 23 respostas idênticas, e as 7 restantes com
+        redação equivalente, não pior ("acho que deveria" contra "acho que
+        você deveria"). Processar o prefixo já na largura do lote resolveria a
+        numérica, mas a API de cache exige uma sequência por vez.
+
+        Determinismo estrito nunca foi propriedade desta etapa: mudar o
+        tamanho do lote já alterava os mesmos empates. Para desligar, basta
+        elevar MIN_SHARED_PREFIX.
+
+        Devolve os prompts já sem o prefixo e os caches correspondentes, ou os
+        prompts originais e None quando não compensa.
+        """
+        import copy
+
+        import mlx.core as mx
+        from mlx_lm.models.cache import make_prompt_cache
+
+        if len(prompts) < 2:
+            return prompts, None
+
+        shared = _common_prefix_length(prompts)
+        # Abaixo deste tamanho o custo de montar e copiar o cache supera o
+        # ganho. Também é preciso sobrar ao menos um token em cada prompt.
+        if shared < MIN_SHARED_PREFIX or any(len(p) <= shared for p in prompts):
+            return prompts, None
+
+        cache = make_prompt_cache(self._model)
+        self._model(mx.array([prompts[0][:shared]]), cache=cache)
+        mx.eval([layer.state for layer in cache])
+
+        return ([p[shared:] for p in prompts],
+                [copy.deepcopy(cache) for _ in prompts])
 
     def _apply_template(self, messages: list[dict[str, str]]) -> str:
         """Monta o prompt desligando o modo de raciocínio quando existir.

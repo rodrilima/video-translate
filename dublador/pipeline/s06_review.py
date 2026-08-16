@@ -33,6 +33,11 @@ def _noop(pct: float, msg: str) -> None:
 # Quantos segmentos vizinhos entram no prompt como contexto.
 CONTEXT_WINDOW = 2
 
+# Quantas falas são adaptadas por vez. Casa com o tamanho de lote seguro do
+# gerador, então não custa chamadas extras: é o mesmo número de requisições,
+# só que montadas mais tarde, quando as anteriores já responderam.
+CONTEXT_CHUNK = 4
+
 
 def review(paths: JobPaths, *, model_id: str, attempts: int = 3,
            speaker_gender: str = "masculina",
@@ -60,18 +65,30 @@ def review(paths: JobPaths, *, model_id: str, attempts: int = 3,
             progress(0.05 + 0.9 * round_index / max(1, attempts),
                      f"{label} {len(pending)} segmentos")
 
-            conversations = [
-                _build_messages(segment, segments, glossary,
-                                genders.get(segment.speaker or "",
-                                            speaker_gender),
-                                retry=round_index > 0,
-                                brief_block=brief_block)
-                for segment in pending
-            ]
-            responses = llm.chat_batch(conversations, max_tokens=384)
+            # Em blocos, e não tudo de uma vez: os prompts de um bloco são
+            # montados depois de o anterior ter respondido, então cada fala vê
+            # os vizinhos já adaptados em vez da tradução literal. Montar tudo
+            # de antemão era mais rápido, mas nenhuma fala enxergava a versão
+            # final da anterior — e é disso que vinha a sensação de frases
+            # soltas, sem conectivo e sem continuidade de assunto.
+            for start in range(0, len(pending), CONTEXT_CHUNK):
+                chunk = pending[start : start + CONTEXT_CHUNK]
+                conversations = [
+                    _build_messages(segment, segments, glossary,
+                                    genders.get(segment.speaker or "",
+                                                speaker_gender),
+                                    retry=round_index > 0,
+                                    brief_block=brief_block)
+                    for segment in chunk
+                ]
+                responses = llm.chat_batch(conversations, max_tokens=384)
+                for segment, raw in zip(chunk, responses):
+                    _apply_response(segment, raw)
 
-            for segment, raw in zip(pending, responses):
-                _apply_response(segment, raw)
+                progress(0.05 + 0.9 * (round_index + (start + len(chunk))
+                                       / max(len(pending), 1))
+                         / max(1, attempts),
+                         f"{label} {start + len(chunk)}/{len(pending)}")
 
             pending = [s for s in pending
                        if s.overflow_pct > OVERFLOW_TOLERANCE
