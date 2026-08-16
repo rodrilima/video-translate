@@ -76,27 +76,86 @@ def looks_corrupted(text: str) -> bool:
     )
 
 
+# Quanto de memória os modelos residentes podem ocupar somados. O sistema
+# reserva ~75% da RAM para a GPU (18 GB em 24 GB); este teto deixa folga para
+# o cache de ativações, o sintetizador e o restante do processo.
+RESIDENT_BUDGET_GB = 13.0
+
+# Modelos já carregados, compartilhados entre as etapas do mesmo processo.
+_LOADED: dict[str, tuple] = {}
+_ORDER: list[str] = []
+
+
+def _active_gb() -> float:
+    import mlx.core as mx
+
+    return mx.get_active_memory() / 1073741824
+
+
+def _evict_until_fits() -> None:
+    """Descarrega o modelo usado há mais tempo até caber no orçamento."""
+    import mlx.core as mx
+
+    while len(_ORDER) > 1 and _active_gb() > RESIDENT_BUDGET_GB:
+        oldest = _ORDER.pop(0)
+        _LOADED.pop(oldest, None)
+        gc.collect()
+        mx.clear_cache()
+
+
+def release_all() -> None:
+    """Libera todos os modelos. Para quando o processo vai fazer outra coisa."""
+    import mlx.core as mx
+
+    _LOADED.clear()
+    _ORDER.clear()
+    gc.collect()
+    mx.clear_cache()
+
+
 class LocalLLM:
-    """Um modelo MLX carregado sob demanda."""
+    """Um modelo MLX, carregado sob demanda e mantido residente.
+
+    O mesmo modelo serve três etapas do pipeline — briefing, revisão e resumo —
+    e antes era carregado do zero em cada uma, a 3,2 s por vez. Como os dois
+    modelos usados somam ~11,7 GB e há 18 GB disponíveis, mantê-los residentes
+    é de graça em memória e poupa o recarregamento.
+
+    O orçamento existe para o caso de um preset usar modelos maiores: passando
+    do teto, o menos usado sai.
+    """
 
     def __init__(self, model_id: str) -> None:
         self.model_id = model_id
-        self._model = None
-        self._tokenizer = None
+
+    @property
+    def _model(self):
+        return _LOADED.get(self.model_id, (None, None))[0]
+
+    @property
+    def _tokenizer(self):
+        return _LOADED.get(self.model_id, (None, None))[1]
 
     def load(self) -> None:
-        if self._model is None:
-            from mlx_lm import load
+        if self.model_id in _LOADED:
+            _ORDER.remove(self.model_id)
+            _ORDER.append(self.model_id)
+            return
 
-            self._model, self._tokenizer = load(self.model_id)
+        from mlx_lm import load
+
+        _LOADED[self.model_id] = load(self.model_id)
+        _ORDER.append(self.model_id)
+        _evict_until_fits()
 
     def unload(self) -> None:
-        """Libera os pesos. Necessário antes de carregar o próximo modelo."""
+        """Mantém o modelo residente para a próxima etapa que o usar.
+
+        As etapas chamam isto ao terminar, mas descarregar de fato só faz
+        sentido quando a memória aperta — e aí o despejo por orçamento resolve.
+        """
         import mlx.core as mx
 
-        self._model = None
-        self._tokenizer = None
-        gc.collect()
         mx.clear_cache()
 
     def chat(self, messages: list[dict[str, str]], *,
