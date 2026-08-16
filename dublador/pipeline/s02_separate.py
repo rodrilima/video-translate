@@ -17,6 +17,7 @@ modelos de stem único.
 
 from __future__ import annotations
 
+import logging
 import shutil
 from pathlib import Path
 from typing import Callable
@@ -59,7 +60,8 @@ def separate(paths: JobPaths, *, model: str = DEFAULT_MODEL,
     progress(0.05, f"carregando {model}")
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     separator = Separator(output_dir=str(workdir), output_format="WAV",
-                          model_file_dir=str(MODELS_DIR))
+                          model_file_dir=str(MODELS_DIR),
+                          log_level=logging.WARNING)
     separator.load_model(model_filename=filename)
 
     progress(0.25, "separando voz e trilha")

@@ -86,6 +86,7 @@ Em `data/jobs/<id>/`:
 | `pt.srt` / `en.srt` | Legendas soltas |
 | `brief.json` | Assunto, registro e termos, apurados do vídeo inteiro |
 | `diarization.json` | Quem fala em cada trecho |
+| `run.log` | Log das bibliotecas, desviado para não sujar o painel |
 
 O `segments.json` é editável: corrija uma tradução à mão e rode
 `--refazer tts` para regerar só o áudio.

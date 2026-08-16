@@ -18,6 +18,8 @@ from rich.table import Table
 from typer.core import TyperGroup
 
 from .config import DEFAULT_PRESET, PRESETS, JobPaths
+from .utils.quiet import quiet_output
+
 
 class _UrlFirstGroup(TyperGroup):
     """Permite `dublador <url>` sem escrever `run`.
@@ -140,23 +142,31 @@ def run(
     console.print(f"[bold]{paths.job_id}[/bold]  {escolha}  preset {preset}")
 
     failed = None
-    with Live(_render_dashboard(state), console=console, refresh_per_second=8,
-              transient=False) as live:
-        def redraw() -> None:
-            live.update(_render_dashboard(state))
+    paths.ensure()
+    log_path = paths.root / "run.log"
 
-        try:
-            runner.run(state, paths, cfg, url=url, voice=voice, gender=gender,
-                       cookies=cookies, force_from=refazer, clone=clonar,
-                       on_change=redraw)
-        except Exception as exc:  # noqa: BLE001 - mostrado abaixo, sem traceback
-            failed = exc
-        redraw()
+    # As bibliotecas do pipeline escrevem no terminal por fora do painel, o que
+    # quebra o layout e gera tracebacks de "closed file" ao tentarem logar num
+    # fluxo que o painel substituiu. Tudo isso vai para o arquivo de log.
+    with quiet_output(log_path):
+        with Live(_render_dashboard(state), console=console,
+                  refresh_per_second=8, transient=False) as live:
+            def redraw() -> None:
+                live.update(_render_dashboard(state))
+
+            try:
+                runner.run(state, paths, cfg, url=url, voice=voice,
+                           gender=gender, cookies=cookies, force_from=refazer,
+                           clone=clonar, on_change=redraw)
+            except Exception as exc:  # noqa: BLE001 - mostrado abaixo, sem traceback
+                failed = exc
+            redraw()
 
     if failed is not None:
         console.print(f"\n[red]falhou:[/red] {failed}")
+        console.print(f"[dim]detalhes em:[/dim] {log_path}")
         console.print(
-            f"[dim]retome de onde parou com:[/dim] uv run dublador run {url}"
+            f"[dim]retome de onde parou com:[/dim] uv run dublador {paths.job_id}"
         )
         raise typer.Exit(1)
 
