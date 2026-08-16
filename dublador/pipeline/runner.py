@@ -208,6 +208,12 @@ def run(state: RunState, paths: JobPaths, preset: Preset, *,
             on_change()
             raise
 
+        # O título só é conhecido depois do download, e é ele que dá nome à
+        # pasta. Renomear aqui evita uma segunda consulta de metadados ao
+        # YouTube: menos requisições, menos chance de esbarrar em bloqueio.
+        if stage.key == "download":
+            _rename_to_title(paths, state)
+
         # marcador para as etapas que alteram segments.json em vez de criar
         # arquivo próprio, permitindo retomada
         marker = stage.artifact(paths)
@@ -223,6 +229,44 @@ def run(state: RunState, paths: JobPaths, preset: Preset, *,
     state.chosen = dict(shared)
     _log_run_summary(state, paths)
     return state
+
+
+def _rename_to_title(paths: JobPaths, state: RunState) -> None:
+    """Dá à pasta o nome do vídeo, agora que o download o revelou.
+
+    Seguro neste ponto porque o download é a primeira etapa: só existem o
+    vídeo, o áudio e os metadados, e nenhum artefato guarda caminho absoluto.
+    """
+    from ..config import JOBS_DIR
+    from ..utils.naming import job_folder
+
+    if not paths.meta.exists():
+        return
+
+    try:
+        source = json.loads(paths.meta.read_text(encoding="utf-8")).get("source", {})
+    except (OSError, ValueError):
+        return
+
+    video_id = source.get("id") or paths.root.name
+    novo = job_folder(source.get("title"), video_id)
+    if novo == paths.root.name:
+        return
+
+    destino = JOBS_DIR / novo
+    if destino.exists():
+        return
+
+    try:
+        paths.root.rename(destino)
+    except OSError as exc:
+        log.warning("não foi possível renomear a pasta do job: %s", exc)
+        return
+
+    log.info("pasta renomeada para %s", novo)
+    paths.root = destino
+    paths.job_id = novo
+    state.job_id = novo
 
 
 def _log_run_header(paths: JobPaths, preset: Preset, url: str,

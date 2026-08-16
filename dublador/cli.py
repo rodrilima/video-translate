@@ -90,36 +90,6 @@ def _youtube_id(url: str) -> str | None:
     return None
 
 
-def _job_folder_for(url: str) -> str:
-    """Pasta do job: título do vídeo mais o identificador.
-
-    O título só é consultado quando o job é novo. Numa retomada a pasta já
-    existe e é encontrada pelo ID, então não há chamada de rede nem espera.
-    """
-    from .config import resolve_job_root
-    from .utils.naming import job_folder
-
-    video_id = job_id_for(url)
-    existing = resolve_job_root(video_id)
-    if existing.exists():
-        return existing.name
-
-    return job_folder(_fetch_title(url), video_id)
-
-
-def _fetch_title(url: str) -> str | None:
-    """Consulta só os metadados, sem baixar mídia. Custa cerca de dois segundos."""
-    try:
-        import yt_dlp
-
-        options = {"quiet": True, "no_warnings": True, "skip_download": True,
-                   "extract_flat": False}
-        with yt_dlp.YoutubeDL(options) as ydl:
-            return (ydl.extract_info(url, download=False) or {}).get("title")
-    except Exception:  # noqa: BLE001 - sem título a pasta cai no ID, e segue
-        return None
-
-
 def _progress_bar(label: str):
     return Progress(
         TextColumn("[bold blue]{task.description}"),
@@ -153,7 +123,9 @@ def run(
     from .tts.base import Voice
 
     url = normalize_url(url)
-    paths = JobPaths(_job_folder_for(url))
+    # A pasta nasce com o identificador e é renomeada para o título assim que o
+    # download o revela, o que evita uma consulta de metadados só para isso.
+    paths = JobPaths(job_id_for(url))
     cfg = PRESETS[preset]
 
     gender = "masculina"
