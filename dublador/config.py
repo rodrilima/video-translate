@@ -103,6 +103,25 @@ PRESETS: dict[str, Preset] = {
 DEFAULT_PRESET = "balanced"
 
 
+def resolve_job_root(name: str) -> Path:
+    """Localiza a pasta de um job aceitando o nome completo ou só o ID.
+
+    As pastas são nomeadas `titulo-do-video-ID`, mas os subcomandos continuam
+    aceitando apenas o ID: quem digita `dublador info ZTSI3DDP_4A` não deveria
+    precisar lembrar do título.
+    """
+    exact = JOBS_DIR / name
+    if exact.exists():
+        return exact
+
+    if JOBS_DIR.exists():
+        matches = sorted(p for p in JOBS_DIR.glob(f"*-{name}") if p.is_dir())
+        if matches:
+            return matches[0]
+
+    return exact
+
+
 @dataclass
 class JobPaths:
     """Localiza todos os artefatos de um job. Cada etapa lê e escreve aqui."""
@@ -111,7 +130,7 @@ class JobPaths:
     root: Path = field(init=False)
 
     def __post_init__(self) -> None:
-        self.root = JOBS_DIR / self.job_id
+        self.root = resolve_job_root(self.job_id)
 
     def ensure(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True)

@@ -41,18 +41,35 @@ uv run dublador iq5VjE31Eig
 ```
 
 Só isso. O programa escolhe as vozes, mostra o progresso de cada etapa no
-terminal e grava tudo em `data/jobs/<id-do-video>/`.
+terminal e grava tudo numa pasta nomeada pelo título do vídeo, como
+`data/jobs/minha-estrategia-de-redes-sociais-ZTSI3DDP_4A/`. O identificador no
+fim mantém a pasta única quando dois vídeos têm o mesmo título, e os
+subcomandos aceitam só ele: `uv run dublador info ZTSI3DDP_4A`.
 
-Passar apenas o ID do vídeo dispensa as aspas. Uma URL completa tem `?` e `&`,
-que o zsh trata como glob e como operador de background — o shell falha antes
-de o programa receber o argumento, então isso não tem como ser resolvido do
-lado do programa. As três formas abaixo funcionam:
+Uma URL completa tem `?`, que o zsh expande como glob antes de o programa
+receber o argumento. Para colar a URL direto, sem aspas, defina um alias com
+`noglob` no seu `~/.zshrc`:
 
 ```bash
-uv run dublador iq5VjE31Eig                              # sem aspas
-uv run dublador https://youtu.be/iq5VjE31Eig             # sem aspas (URL curta)
+alias dublar='noglob uv run dublador'
+```
+
+Daí em diante:
+
+```bash
+dublar https://www.youtube.com/watch?v=iq5VjE31Eig       # URL completa, sem aspas
+```
+
+Sem o alias, estas formas funcionam do mesmo jeito:
+
+```bash
+uv run dublador iq5VjE31Eig                              # só o ID
+uv run dublador https://youtu.be/iq5VjE31Eig             # URL curta
 uv run dublador "https://www.youtube.com/watch?v=iq5..."  # URL completa, com aspas
 ```
+
+O `noglob` não cobre URLs com `&` (playlists, por exemplo), porque o `&` manda
+o comando para background. Nesses casos use aspas ou passe só o ID.
 
 Rodar o mesmo link de novo aproveita tudo que já está em disco — uma execução
 interrompida continua de onde parou, em vez de recomeçar.
@@ -76,7 +93,7 @@ uv run dublador --voice dora --refazer tts iq5VjE31Eig
 
 ### O que é gerado
 
-Em `data/jobs/<id>/`:
+Na pasta do job:
 
 | arquivo | conteúdo |
 |---|---|
