@@ -164,14 +164,14 @@ download → separate → diarize → asr → segment → brief → voice
 | diarize | identifica quem fala quando | senko (CoreML) |
 | asr | transcreve com tempo por palavra | Parakeet TDT 0.6B |
 | segment | monta as falas e o orçamento de tempo | — |
-| brief | lê o vídeo inteiro: assunto, termos, locutor | Qwen3-14B |
+| brief | lê o vídeo inteiro: assunto, termos, locutor | Qwen3.5-9B |
 | voice | escolhe a voz de cada locutor | — |
 | translate | tradução base, com contexto | Hy-MT2-7B |
-| review | adapta para fala natural que caiba no tempo | Qwen3-14B |
+| review | adapta para fala natural que caiba no tempo | Qwen3.5-9B |
 | tts | sintetiza a voz | Kokoro-82M |
 | fit | encaixa na linha do tempo do vídeo | rubberband |
 | render | mixa, normaliza e monta o arquivo | ffmpeg |
-| summary | escreve o resumo | Qwen3-14B |
+| summary | escreve o resumo | Qwen3.5-9B |
 
 ### O problema central: isocronia
 

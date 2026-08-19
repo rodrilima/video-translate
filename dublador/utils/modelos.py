@@ -23,7 +23,7 @@ LMSTUDIO_DIR = Path.home() / ".lmstudio" / "models"
 
 @dataclass
 class Modelo:
-    repo: str            # "mlx-community/Qwen3-14B-4bit"
+    repo: str            # "mlx-community/Hy-MT2-7B-4bit"
     origem: Path         # pasta no cache do Hugging Face
     destino: Path        # pasta correspondente no LM Studio
     tamanho_gb: float

@@ -94,17 +94,20 @@ class Preset:
 
 
 # Os três presets usam o mesmo revisor. Ele é a etapa que domina o tempo, e o
-# maior modelo que cabe com folga nos 18 GB disponíveis para a GPU já é o de
-# 14B — subir dele exigiria abrir mão da residência dos modelos, que sozinha
-# vale 16s por execução. O que separa os presets é o esforço: quantas rodadas
-# de reescrita, qual separador de fontes e qual sintetizador.
+# limite continua sendo os 18 GB disponíveis para a GPU: subir de tamanho
+# exigiria abrir mão da residência dos modelos, que sozinha vale 16s por
+# execução. O 9B substituiu o Qwen3-14B-4bit, que saiu da máquina numa limpeza;
+# é da mesma família, então o desligamento do <think> em _apply_template
+# continua valendo, e por ser menor sobra folga na residência. O que separa os
+# presets é o esforço: quantas rodadas de reescrita, qual separador de fontes e
+# qual sintetizador.
 PRESETS: dict[str, Preset] = {
     "draft": Preset(
         name="draft",
         asr_model="mlx-community/parakeet-tdt-0.6b-v3",
         separator_model="htdemucs",
         translator_model=None,  # passada única: o revisor traduz e adapta junto
-        reviewer_model="mlx-community/Qwen3-14B-4bit",
+        reviewer_model="huihui-ai/Huihui-Qwen3.5-9B-abliterated-mlx-4bit",
         tts_backend="kokoro",
         fit_attempts=0,
     ),
@@ -113,7 +116,7 @@ PRESETS: dict[str, Preset] = {
         asr_model="mlx-community/parakeet-tdt-0.6b-v3",
         separator_model="bs_roformer",
         translator_model="mlx-community/Hy-MT2-7B-4bit",
-        reviewer_model="mlx-community/Qwen3-14B-4bit",
+        reviewer_model="huihui-ai/Huihui-Qwen3.5-9B-abliterated-mlx-4bit",
         tts_backend="kokoro",
         fit_attempts=3,
     ),
@@ -122,7 +125,7 @@ PRESETS: dict[str, Preset] = {
         asr_model="mlx-community/parakeet-tdt-0.6b-v3",
         separator_model="bs_roformer",
         translator_model="mlx-community/Hy-MT2-7B-4bit",
-        reviewer_model="mlx-community/Qwen3-14B-4bit",
+        reviewer_model="huihui-ai/Huihui-Qwen3.5-9B-abliterated-mlx-4bit",
         tts_backend="kokoro",
         fit_attempts=5,
     ),
