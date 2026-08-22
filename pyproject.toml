@@ -6,7 +6,7 @@ requires-python = ">=3.12,<3.13"
 
 dependencies = [
     # download e mídia
-    "yt-dlp>=2026.7.4",
+    "yt-dlp>=2026.8.19",
     "ffmpeg-normalize>=1.28",
     # áudio
     "numpy>=1.26",
@@ -22,6 +22,7 @@ dependencies = [
     "mlx-audio-separator>=0.1.7",
     "librosa>=1.0.0",
     "senko",
+    "bgutil-ytdlp-pot-provider>=1.3.2",
 ]
 
 [project.optional-dependencies]

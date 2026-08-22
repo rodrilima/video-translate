@@ -264,8 +264,6 @@ def _rename_to_title(paths: JobPaths, state: RunState) -> None:
 
     log.info("pasta renomeada para %s", novo)
     paths.root = destino
-    paths.job_id = novo
-    state.job_id = novo
 
 
 def _log_run_header(paths: JobPaths, preset: Preset, url: str,

@@ -75,6 +75,10 @@ def synthesize(paths: JobPaths, *, backend_name: str, voice_name: str | None,
 
 CLONE_BACKEND = "omnivoice"
 
+# Piso para segmentos degenerados (start == end, sem gap_before): evita divisão
+# por zero no cálculo de overflow_pct sem distorcer segmentos normais.
+MIN_TARGET_DURATION = 0.05
+
 
 def _clone_cache(paths: JobPaths, segments: list[Segment]) -> dict:
     """Vozes extraídas do próprio vídeo, uma por locutor."""
@@ -122,7 +126,7 @@ def _synthesize_segment(backend: TTSBackend, segment: Segment, voice: Voice,
         segment.tts_duration = 0.0
         return
 
-    target = segment.target_duration
+    target = max(segment.target_duration, MIN_TARGET_DURATION)
     natural = estimated_duration(text)
     requested = _requested_duration(natural, target)
 

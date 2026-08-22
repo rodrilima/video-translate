@@ -84,6 +84,11 @@ def build(paths: JobPaths, *, model_id: str,
     finally:
         llm.unload()
 
+    if isinstance(payload, list):
+        payload = next((item for item in payload if isinstance(item, dict)), {})
+    if not isinstance(payload, dict):
+        payload = {}
+
     locutor = payload.get("locutor") or {}
     if not isinstance(locutor, dict):
         locutor = {}
