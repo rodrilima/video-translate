@@ -126,8 +126,15 @@ def _synthesize_segment(backend: TTSBackend, segment: Segment, voice: Voice,
         segment.tts_duration = 0.0
         return
 
-    target = max(segment.target_duration, MIN_TARGET_DURATION)
     natural = estimated_duration(text)
+    if natural <= 0:
+        # texto sem sílabas (ex: "." sobrado da revisão): nada a sintetizar,
+        # e duration_s=0.0 quebra os backends de TTS (grade de tokens vazia).
+        segment.tts_path = None
+        segment.tts_duration = 0.0
+        return
+
+    target = max(segment.target_duration, MIN_TARGET_DURATION)
     requested = _requested_duration(natural, target)
 
     result = backend.synthesize(text, voice, duration_s=requested)
